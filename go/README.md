@@ -1,45 +1,49 @@
-# lalafo-mcp-go
+# lalafo-mcp (Go)
 
-Go-порт MCP-сервера для Кыргызстана: поиск объявлений **Lalafo** + ассистент проверки штрафов **Carcheck**.
-Один статический бинарник, без рантайма. Официальный [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
+Go port of the Lalafo search + Carcheck MCP server — a single static binary, no runtime.
+Built on the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
+See the [repository root README](../README.md) for the project overview and rationale.
 
-## Инструменты
+## Tools
 
-| Tool | Что делает |
-|------|------------|
-| `check_fines(plate)` | Нормализует госномер и отдаёт ссылки на Carcheck + mashina.kg/tolom.kg/balance.kg. Carcheck закрыт логином + reCAPTCHA → вход/капчу проходит пользователь. |
-| `search(query, per_page, strict)` | Поиск по словам. `strict` (по умолч. true) убирает нерелевантную «мешанину». |
-| `search_cars(make, model, year_from, price_max_usd)` | Авто: марка→категория, год→диапазон, цена нормализуется в USD. |
-| `search_rentals(rooms, price_max, district, deal, exclude_shared)` | Аренда квартир: комнаты, цена в сомах, район текстом, отсев «подселения». |
+| Tool | Description |
+|------|-------------|
+| `check_fines(plate)` | Normalizes a KG plate and returns Carcheck links + mashina.kg / tolom.kg / balance.kg. Carcheck is gated by login + reCAPTCHA → the user completes login and the captcha. |
+| `search(query, per_page, strict)` | Keyword search. `strict` (default `true`) drops irrelevant padding. |
+| `search_cars(make, model, year_from, price_max_usd)` | Cars: brand → category, year → range, price normalized to USD. |
+| `search_rentals(rooms, price_max, district, deal, exclude_shared)` | Apartment rentals: rooms, price in som, district by text, room-shares («подселение») filtered out. |
 
-## Сборка и запуск
+## Build & run
 
 ```bash
-cd C:\projects\lalafo-mcp-go
+cd go
 go mod tidy
-go build -o lalafo-mcp.exe        # один бинарник
-.\lalafo-mcp.exe                  # MCP-сервер по stdio
+go build -o lalafo-mcp.exe        # one static binary
+./lalafo-mcp.exe                  # MCP server over stdio
 
-go run . -selftest                # живой прогон логики (без MCP)
+go run . -selftest                # live smoke test (no MCP client)
 ```
 
-### Подключение к Claude Code
+Optionally copy `.env.example` → `.env` to set `LALAFO_COUNTRY_ID`
+(12 = Kyrgyzstan), `LALAFO_LANGUAGE`, `USD_KGS_RATE`.
+
+### Connect to Claude Code
 
 ```bash
-claude mcp add lalafo-kg -- C:\projects\lalafo-mcp-go\lalafo-mcp.exe
+claude mcp add lalafo-kg -- /ABS/PATH/lalafo-mcp/go/lalafo-mcp.exe
 ```
 
-## Заметки
+## Notes
 
-- Те же проверенные факты, что и в Python-версии: endpoint `api.lalafo.com/v3/ads/search` (без auth, но с обяз. заголовками `country-id/device/language`), `parameters[ID]=value_id` для select-параметров, `parameters[62][from]` (литерал года) для диапазона, фильтр цены слеп к валюте → USD считаем сами, кривой фильтр Lalafo **молча игнорирует** → проверяем, что totalCount сузился.
-- Carcheck автоматизировать нельзя (логин + reCAPTCHA, бэкенд `/api/violation-check/find-by-plate` → 401). Госномера в объявлениях Lalafo нет.
-- Клиент: ретраи на транзиентных сетевых/5xx ошибках + пауза 0.25с между страницами.
+- Same verified facts as the Python version: endpoint `api.lalafo.com/v3/ads/search` (no auth, but the mandatory `country-id` / `device` / `language` headers), `parameters[ID]=value_id` for select filters, `parameters[62][from]` (literal year) for a range, the currency-blind price filter → USD computed client-side, and the silently-ignored bad filter → the server verifies `totalCount` actually shrank.
+- Carcheck cannot be automated (login + reCAPTCHA, backend `/api/violation-check/find-by-plate` → 401). License plates are not present in Lalafo listings.
+- HTTP client: retries on transient network/5xx errors + 0.25 s pacing between paginated pages.
 
-## Структура
+## Layout
 
 ```
-client.go    # net/http + retry, типы Ad/SearchResponse
-carcheck.go  # нормализация номера + ссылки
-core.go      # search_listings / search_cars / search_rentals + хелперы
-main.go      # mcp.AddTool ×4 + режим -selftest
+client.go    # net/http + retry, Ad/SearchResponse types
+carcheck.go  # plate normalization + links
+core.go      # search_listings / search_cars / search_rentals + helpers
+main.go      # mcp.AddTool ×4 + -selftest mode
 ```

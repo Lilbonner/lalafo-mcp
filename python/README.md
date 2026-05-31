@@ -1,59 +1,59 @@
-# lalafo-mcp
+# lalafo-mcp (Python)
 
-MCP-сервер для Кыргызстана: поиск объявлений на **Lalafo** и ассистент проверки штрафов через **Carcheck**.
+FastMCP implementation of the Lalafo search + Carcheck MCP server.
+See the [repository root README](../README.md) for the project overview and rationale.
 
-## Инструменты
+## Tools
 
-| Tool | Что делает |
-|------|------------|
-| `check_fines(plate)` | Нормализует госномер и отдаёт ссылки на Carcheck (офиц.) + mashina.kg / tolom.kg / balance.kg. Carcheck закрыт логином и reCAPTCHA, поэтому это ассистент — вход и капчу проходит пользователь. |
-| `search(query, per_page, strict)` | Поиск по ключевым словам. `strict=True` убирает нерелевантную «мешанину» (Lalafo оптимизирует recall, а не точность) и сортирует по релевантности. |
-| `search_cars(make, model, year_from, price_max_usd)` | Поиск авто. Учитывает 3 особенности API: марка = категория, год = числовой диапазон, а цену в USD считает сам (серверный фильтр цены слеп к валюте). |
+| Tool | Description |
+|------|-------------|
+| `check_fines(plate)` | Normalizes a KG plate and returns Carcheck links (official) + mashina.kg / tolom.kg / balance.kg. Carcheck is gated by login + reCAPTCHA, so this is an assistant — the user completes login and the captcha. |
+| `search(query, per_page, strict)` | Keyword search. `strict=True` drops irrelevant padding (Lalafo optimizes recall, not precision) and ranks by relevance. |
+| `search_cars(make, model, year_from, price_max_usd)` | Car search. Handles 3 API quirks: brand = category, year = numeric range, and price is normalized to USD client-side (the server price filter is currency-blind). |
+| `search_rentals(rooms, price_max, district, deal, exclude_shared)` | Apartment rentals: rooms, price in KGS som, district matched in text (no structured filter exists), room-shares («подселение») filtered out. |
 
-## Запуск
+## Run
 
-Нужен Python 3.10+. Рекомендуется [uv](https://docs.astral.sh/uv/).
-
-```bash
-cd C:\projects\lalafo-mcp
-uv sync                 # или: pip install -e .
-uv run lalafo-mcp       # запуск MCP-сервера (stdio)
-```
-
-Перед стартом можно скопировать `.env.example` → `.env` и задать `LALAFO_COUNTRY_ID`
-(12 = Кыргызстан), `LALAFO_LANGUAGE`, `USD_KGS_RATE`.
-
-### Подключение к Claude Code
+Requires Python 3.10+. [uv](https://docs.astral.sh/uv/) is recommended.
 
 ```bash
-claude mcp add lalafo-kg -- uv run --directory C:\projects\lalafo-mcp lalafo-mcp
+cd python
+uv sync                 # or: pip install -e .
+uv run lalafo-mcp       # start the MCP server (stdio)
 ```
 
-(Без uv: `pip install -e .`, затем команда `lalafo-mcp` или `python -m lalafo_mcp.server`.)
+Optionally copy `.env.example` → `.env` and set `LALAFO_COUNTRY_ID`
+(12 = Kyrgyzstan), `LALAFO_LANGUAGE`, `USD_KGS_RATE`.
 
-## Проверка логики без MCP
+### Connect to Claude Code
 
 ```bash
-python selftest.py      # бьёт по живому API: check_fines + search + search_cars
+claude mcp add lalafo-kg -- uv run --directory /ABS/PATH/lalafo-mcp/python lalafo-mcp
 ```
 
-## Заметки / ограничения
+(Without uv: `pip install -e .`, then run `lalafo-mcp` or `python -m lalafo_mcp.server`.)
 
-- **Carcheck нельзя автоматизировать**: госсервис с логином + reCAPTCHA (бэкенд `/api/violation-check/find-by-plate` → 401 без сессии). Инструмент только готовит ссылку и нормализует номер.
-- **Госномер в объявлениях Lalafo не публикуется** — для `check_fines` берите номер у продавца / с фото.
-- **Цена авто нормализуется в USD на клиенте** — серверный `price[to]` сравнивает голое число, мешая $ и сом. Курс задаётся `USD_KGS_RATE`.
-- **Тихий игнор фильтров**: Lalafo молча отбрасывает невалидный фильтр (не ошибка). `search_cars` проверяет, что фильтр по году реально сузил выдачу, и иначе возвращает `warning`.
-- Использовать в рамках ToS площадок; без агрессивных частот запросов.
+## Self-test (no MCP client)
 
-## Структура
+```bash
+python selftest.py      # hits the live API: check_fines + search + search_cars + search_rentals
+```
+
+## Notes / limitations
+
+- **Carcheck cannot be automated**: a government service behind login + reCAPTCHA (backend `/api/violation-check/find-by-plate` → 401 without a session). The tool only normalizes the plate and builds the links.
+- **License plates are not published in Lalafo listings** — for `check_fines`, get the plate from the seller / photos.
+- **Car prices are normalized to USD client-side** — the server `price[to]` compares the raw number, mixing `$` and som. The rate is set via `USD_KGS_RATE`.
+- **Silent filter ignore**: Lalafo silently drops an invalid filter (no error). `search_cars` / `search_rentals` verify that the filter actually narrowed the result set and return a `warning` otherwise.
+- Use within the platforms' Terms of Service; avoid aggressive request rates.
+
+## Layout
 
 ```
 src/lalafo_mcp/
-  client.py     # Lalafo API (stdlib urllib): /v3/ads/search, /v3/ads/{id}
-  core.py       # логика: search_listings, search_cars (mcp-free, тестируемо)
-  carcheck.py   # нормализация госномера + генерация ссылок
-  server.py     # FastMCP-обёртки (check_fines, search, search_cars)
+  client.py     # Lalafo API (stdlib urllib) with retry: /v3/ads/search, /v3/ads/{id}
+  core.py       # logic: search_listings, search_cars, search_rentals (mcp-free, testable)
+  carcheck.py   # plate normalization + link generation
+  server.py     # FastMCP wrappers (check_fines, search, search_cars, search_rentals)
+selftest.py     # live smoke test
 ```
-
-Дальше можно добавить `search_rentals` (категории 2043/2044, комнаты `parameters[69]`, цена
-`price[from]/[to]`, текст-фильтр по микрорайону, стоп-слова «подселение»).
