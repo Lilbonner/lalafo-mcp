@@ -129,6 +129,7 @@ def search_rentals(rooms: str = "", price_max: int = 0, district: str = "",
             if not match_district(hay):
                 continue
             rows.append({
+                "id": i.get("id"),
                 "title": i.get("title"),
                 "price": i.get("price"),
                 "currency": i.get("symbol") or i.get("currency"),
@@ -174,6 +175,7 @@ def search_listings(query: str, per_page: int = 30, strict: bool = True) -> list
         if strict and cov == 0:
             continue
         out.append({
+            "id": i.get("id"),
             "title": i.get("title"),
             "price": i.get("price"),
             "currency": i.get("symbol") or i.get("currency"),
@@ -213,6 +215,7 @@ def search_cars(make: str, model: str = "", year_from: int | None = None,
             continue
         yr = re.search(r"(19|20)\d\d", title)
         rows.append({
+            "id": i.get("id"),
             "title": title,
             "price_usd": usd,
             "price_raw": f"{i.get('price')} {i.get('symbol')}",

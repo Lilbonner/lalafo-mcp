@@ -4,12 +4,15 @@ Run:  python selftest.py
 """
 import os
 import sys
+import tempfile
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 os.environ.setdefault("LALAFO_COUNTRY_ID", "12")
+# isolate subscription state so the self-test doesn't touch the real store
+os.environ.setdefault("LALAFO_DATA_DIR", os.path.join(tempfile.gettempdir(), "lalafo-mcp-selftest"))
 
-from lalafo_mcp import carcheck, core  # noqa: E402
+from lalafo_mcp import carcheck, core, subscriptions  # noqa: E402
 
 
 def test_carcheck():
@@ -56,9 +59,23 @@ def test_rentals():
         print(f"   {it['price']} {it['currency']} | {it['title'][:42]}")
 
 
+def test_subscriptions():
+    print("\n== subscriptions ==")
+    sub = subscriptions.add("2к 7мкр ≤40к", "rentals",
+                            {"rooms": "2", "price_max": 40000, "district": "7 микрорайон", "deal": "long"})
+    print(f"  created id={sub.get('id')} seeded={sub.get('seeded_existing')} channels={sub.get('channels')}")
+    print(f"  list: {len(subscriptions.list_all())} subscription(s)")
+    chk = subscriptions.check(sub["id"], notify_channels=False)
+    new = chk["subscriptions"][0]["new_count"]
+    print(f"  immediate re-check -> new_count={new} (expect 0 right after seeding)")
+    print(f"  removed: {subscriptions.remove(sub['id']).get('removed')}")
+    assert new == 0, "a freshly-seeded subscription must report 0 new"
+
+
 if __name__ == "__main__":
     test_carcheck()
     test_search()
     test_cars()
     test_rentals()
+    test_subscriptions()
     print("\nOK")

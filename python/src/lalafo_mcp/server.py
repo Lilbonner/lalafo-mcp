@@ -1,7 +1,7 @@
 """FastMCP server — thin tool wrappers over carcheck + core."""
 from mcp.server.fastmcp import FastMCP
 
-from . import carcheck, core
+from . import carcheck, core, subscriptions
 
 mcp = FastMCP("lalafo-kg")
 
@@ -58,6 +58,50 @@ def search_rentals(rooms: str = "", price_max: int = 0, district: str = "",
     (посуточно); exclude_shared=True убирает «подселение» (комната в квартире, не вся).
     """
     return core.search_rentals(rooms, price_max, district, deal, exclude_shared, per_page)
+
+
+@mcp.tool()
+def subscribe(name: str, kind: str, query: str = "", rooms: str = "", price_max: int = 0,
+              district: str = "", deal: str = "long", make: str = "", model: str = "",
+              year_from: int = 0, price_max_usd: int = 0) -> dict:
+    """Подписаться на поиск и отслеживать НОВЫЕ подходящие объявления.
+
+    kind: 'search' (заполни query), 'cars' (make/model/year_from/price_max_usd) или
+    'rentals' (rooms/price_max/district/deal). Существующие объявления при создании
+    помечаются как «уже виденные» — уведомления придут только о новых.
+    Уведомления уходят в каналы из env (ntfy/Telegram/webhook), если настроены.
+    """
+    if kind == "search":
+        params = {"query": query}
+    elif kind == "cars":
+        params = {"make": make, "model": model, "year_from": year_from, "price_max_usd": price_max_usd}
+    elif kind == "rentals":
+        params = {"rooms": rooms, "price_max": price_max, "district": district, "deal": deal}
+    else:
+        return {"error": "kind должен быть: search | cars | rentals"}
+    return subscriptions.add(name, kind, params)
+
+
+@mcp.tool()
+def list_subscriptions() -> list:
+    """Список сохранённых подписок на поиск."""
+    return subscriptions.list_all()
+
+
+@mcp.tool()
+def unsubscribe(subscription_id: str) -> dict:
+    """Удалить подписку по id."""
+    return subscriptions.remove(subscription_id)
+
+
+@mcp.tool()
+def check_subscriptions(subscription_id: str = "") -> dict:
+    """Проверить подписки и вернуть объявления, появившиеся с прошлой проверки.
+
+    Без аргумента проверяет все подписки. Если настроены каналы уведомлений
+    (ntfy/Telegram/webhook) — отправляет их. Подходит для запуска по расписанию/в /loop.
+    """
+    return subscriptions.check(subscription_id or None, notify_channels=True)
 
 
 def main():

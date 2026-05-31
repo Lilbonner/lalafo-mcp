@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 lalafo-mcp = "lalafo_mcp.server:main"
+lalafo-mcp-monitor = "lalafo_mcp.monitor:main"
 
 [build-system]
 requires = ["hatchling"]
