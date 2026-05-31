@@ -41,6 +41,26 @@ a helper for Kyrgyzstan's government **Carcheck** vehicle service.
 | `search_rentals(rooms?, price_max?, district?, deal?, exclude_shared?)` | Apartment rentals: rooms, price in **KGS som**, district matched in text, room-shares («подселение») filtered out. |
 | `check_fines(plate)` | Normalizes a KG plate and returns ready Carcheck links (official + 3 mirrors). Carcheck needs login + reCAPTCHA, so the user finishes the lookup. |
 
+## Subscriptions & notifications
+
+Save any search and get notified when **new** matching listings appear. *(Python implementation; Go port pending.)*
+
+| Tool | Description |
+|---|---|
+| `subscribe(name, kind, …)` | Save a search (`kind` = `search` / `cars` / `rentals`). Existing matches are marked as seen, so you're only alerted about **new** ones. |
+| `list_subscriptions()` | List saved searches. |
+| `unsubscribe(id)` | Delete a subscription. |
+| `check_subscriptions(id?)` | Re-run subscriptions, return listings new since last check, and push notifications. |
+
+Subscriptions persist under `LALAFO_DATA_DIR` (default `~/.lalafo-mcp`). Notifications are sent to
+any configured channel — **ntfy** (`NTFY_TOPIC_URL`), **Telegram** (`TELEGRAM_BOT_TOKEN` +
+`TELEGRAM_CHAT_ID`) or a **webhook** (`WEBHOOK_URL`); if none are set, `check_subscriptions` simply
+returns the matches. Poll it two ways:
+
+- **From the assistant** — call `check_subscriptions` on demand, or on a timer via Claude Code `/loop`.
+- **Headless** — `lalafo-mcp-monitor` (loops every `MONITOR_INTERVAL` s) or `lalafo-mcp-monitor --once`
+  for cron / Windows Task Scheduler. The monitor shares the subscription store with the server.
+
 ## Quick start
 
 ### Python
